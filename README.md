@@ -116,6 +116,17 @@ week's plan overlay — your logged data is untouched. Unknown fields are ignore
 > changes from last week. Use existing supplement ids and recipe ids where possible. Weekday keys
 > Mon–Sun; weights/reps as strings; times like "8:05 AM". Output only the JSON.
 
+## Notifications (server-side)
+
+ntfy reminders are scheduled by a single daily job — **`.github/workflows/notify.yml`** →
+**`scripts/schedule-notifications.mjs`** — not by the app (per-device scheduling caused duplicates).
+The job reads the current plan from Supabase, builds a tailored set (morning summary, batched
+supplement stacks, lunch/snack nudges, bedtime wind-down), and posts each to the ntfy topic with an
+`At` header for exact-time delivery. Requires a repo Actions secret **`SUPABASE_SERVICE_KEY`**
+(service_role key — reads the RLS-locked row). Test locally:
+`node scripts/schedule-notifications.mjs --dry-run --state <mock.json>`; trigger live with
+`gh workflow run notify.yml`.
+
 ## Data schema (adopted from live Supabase — canonical)
 
 The live Supabase row (`app_sync`, user `rodney`) is the source of truth, and this code was adapted

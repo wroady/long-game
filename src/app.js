@@ -402,46 +402,10 @@ async function doCloudSync(){
 }
 
 // ── NTFY ───────────────────────────────────────────────────────────────────────
-async function ntfy(title,body,at){
-  try{var h={"Content-Type":"text/plain","Title":title};if(at)h["At"]=String(at);await fetch(NTFY,{method:"POST",headers:h,body:body});}
-  catch(e){console.warn("ntfy failed",e);}
-}
-async function scheduleDay(){
-  if(!syncEnabled())return; // don't send real push notifications from local dev/preview
-  var today=todayKey();
-  if(lsGet("tlg-ntfy")===today)return;
-  var now=new Date(),nm=nowMin();
-  var active=curPlan().supplements; // already phase-filtered by the resolver
-  active.forEach(function(s){
-    if(APP.days[today]&&APP.days[today].supplements&&APP.days[today].supplements[s.id])return;
-    if(s.tMin<=nm)return;
-    var fd=new Date(now);fd.setHours(Math.floor(s.tMin/60),s.tMin%60,0,0);
-    ntfy("Supplement reminder",s.label,Math.floor(fd.getTime()/1000));
-  });
-  // Breakfast suggestion reminder — 7:35 AM
-  var bfMin=455;
-  if(bfMin>nm&&!(APP.days[today]&&APP.days[today].meals&&mealEaten(APP.days[today].meals.breakfast))){
-    var fdBf=new Date(now);fdBf.setHours(7,35,0,0);
-    ntfy("Breakfast suggestion ready","Open The Long Game for today's recommended breakfast based on your workout schedule.",Math.floor(fdBf.getTime()/1000));
-  }
-  // Lunch suggestion reminder — 11:30 AM
-  var lunchMin=690;
-  if(lunchMin>nm&&!(APP.days[today]&&APP.days[today].meals&&mealEaten(APP.days[today].meals.lunch))){
-    var fdLunch=new Date(now);fdLunch.setHours(11,30,0,0);
-    ntfy("Lunch suggestion ready","Open The Long Game to see the best lunch option based on your morning protein.",Math.floor(fdLunch.getTime()/1000));
-  }
-  // Snack reminder — 3:30 PM
-  var snackMin=930;
-  if(snackMin>nm&&!(APP.days[today]&&APP.days[today].meals&&mealEaten(APP.days[today].meals.snack))){
-    var fd2=new Date(now);fd2.setHours(15,30,0,0);
-    ntfy("Snack time","Time for your 3:30 PM snack — open The Long Game for today's suggestion.",Math.floor(fd2.getTime()/1000));
-  }
-  if(new Date().getDay()===6&&nowMin()<1020){
-    var fd3=new Date(now);fd3.setHours(17,0,0,0);
-    ntfy("Plan groceries tonight","Open The Long Game → Grocery tab to plan next week's menu.",Math.floor(fd3.getTime()/1000));
-  }
-  lsSet("tlg-ntfy",today);
-}
+// NOTE: ntfy reminders are now scheduled server-side by a single daily GitHub Actions job
+// (scripts/schedule-notifications.mjs). The client no longer posts to ntfy — doing so per-device
+// caused duplicate reminders. In-app Web Notifications (desk-break, rest timer) are unaffected.
+function scheduleDay(){ /* intentionally a no-op — see scripts/schedule-notifications.mjs */ }
 
 // ── APP STATE ──────────────────────────────────────────────────────────────────
 var APP={

@@ -1,0 +1,30 @@
+name: Daily notifications
+
+# Once each morning: read the current plan from Supabase and schedule the day's ntfy reminders
+# (with `At` headers, so ntfy delivers each at its exact time). Single source → no duplicates.
+# Runs before the first reminder (6:15 AM ET); GitHub cron drift is fine because delivery is via `At`.
+
+on:
+  schedule:
+    - cron: '0 9 * * *' # 09:00 UTC ≈ 04:00–05:00 America/Detroit
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notify
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Schedule today's reminders
+        run: node scripts/schedule-notifications.mjs
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
