@@ -1045,15 +1045,47 @@ function makeMealSugCard(mealType,option,reason,cal,prot,onDismiss){
   ]);
 }
 
+// Popup showing a dinner recipe's macros + ingredients. Appended to <body> so render() can't clobber it.
+function showRecipeModal(rid){
+  var r=RECIPES[rid];
+  if(!r)return;
+  var existing=document.getElementById("recipe-modal");if(existing)existing.remove();
+  function close(){var m=document.getElementById("recipe-modal");if(m)m.remove();}
+  var proteinObj=PROTEINS_ALL.find(function(p){return p.id===r.prot;});
+  var proteinLabel=proteinObj?proteinObj.label:r.prot;
+  var catLabels={produce:"Produce",pantry:"Pantry",dairy:"Dairy"};
+  var sections=[];
+  ["produce","pantry","dairy"].forEach(function(cat){
+    if(r.ing&&r.ing[cat]&&r.ing[cat].length){
+      sections.push(h("div",{style:{marginTop:"14px"}},[
+        h("div",{style:{fontFamily:"var(--font-d)",fontSize:"12px",letterSpacing:".06em",textTransform:"uppercase",color:"var(--muted)",marginBottom:"6px"}},catLabels[cat]||cat),
+        h("ul",{style:{margin:0,paddingLeft:"18px"}},r.ing[cat].map(function(item){return h("li",{style:{fontSize:"13.5px",color:"var(--text)",padding:"2px 0",lineHeight:"1.35"}},item);})),
+      ]));
+    }
+  });
+  var card=h("div",{style:{background:"var(--card)",border:"1px solid var(--line)",borderRadius:"16px",padding:"20px",maxWidth:"440px",width:"92%",maxHeight:"85vh",overflowY:"auto",boxShadow:"0 12px 40px rgba(0,0,0,.5)"},onclick:function(e){e.stopPropagation();}},[
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"12px"}},[
+      h("div",{style:{fontFamily:"var(--font-d)",fontSize:"20px",color:"var(--text)",lineHeight:"1.2"}},r.label),
+      h("button",{style:{flexShrink:0,background:"none",border:"none",color:"var(--muted)",fontSize:"26px",cursor:"pointer",lineHeight:"1",padding:"0 4px"},onclick:close},"×"),
+    ]),
+    h("div",{style:{fontSize:"13px",color:"var(--sage)",marginTop:"6px"}},proteinLabel+" · "+r.cal+" cal · "+r.rprot+"g protein"),
+    h("div",{style:{fontFamily:"var(--font-d)",fontSize:"12px",letterSpacing:".06em",textTransform:"uppercase",color:"var(--sage)",marginTop:"18px"}},"Ingredients"),
+    h("div",{},sections.length?sections:[h("div",{style:{fontSize:"13px",color:"var(--muted)",marginTop:"8px"}},"No ingredient list for this recipe.")]),
+  ]);
+  var overlay=h("div",{id:"recipe-modal",style:{position:"fixed",top:"0",left:"0",right:"0",bottom:"0",background:"rgba(0,0,0,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:"200",padding:"16px"},onclick:close},[card]);
+  document.body.appendChild(overlay);
+}
+
 function makeWeekStrip(ws,today){
   var days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   return h("div",{style:{display:"flex",gap:"8px",overflowX:"auto",paddingBottom:"4px",marginBottom:"16px"}},days.map(function(day){
     var rid=ws.dinnerPlan[day];
     var r=RECIPES[rid];
     var isToday=day===today;
-    return h("div",{style:{minWidth:"92px",background:isToday?"var(--card-strong)":"var(--card)",border:isToday?"1px solid var(--sage)":"1px solid var(--line)",borderRadius:"10px",padding:"10px",flexShrink:0}},[
+    return h("div",{style:{minWidth:"92px",background:isToday?"var(--card-strong)":"var(--card)",border:isToday?"1px solid var(--sage)":"1px solid var(--line)",borderRadius:"10px",padding:"10px",flexShrink:0,cursor:r?"pointer":"default"},onclick:r?function(){showRecipeModal(rid);}:null},[
       h("div",{style:{fontSize:"11px",color:"var(--muted)",marginBottom:"4px"}},day),
       h("div",{style:{fontSize:"12.5px",color:"var(--text)",lineHeight:"1.3"}},r?r.label:"—"),
+      r?h("div",{style:{fontSize:"10px",color:"var(--sage)",marginTop:"6px"}},"View recipe ›"):"",
     ]);
   }));
 }
@@ -1118,10 +1150,16 @@ function makeMealCard(m,dl,adj,ws,todayAbbr){
   } else {
     var planned=plannedMeal(m,ws,todayAbbr);
     if(planned){
+      // Dinner's planned meal is a recipe — make its name tap to open the recipe popup.
+      var dinnerRid=(m.id==="dinner"&&ws&&ws.dinnerPlan)?ws.dinnerPlan[todayAbbr]:null;
+      var hasRecipe=dinnerRid&&RECIPES[dinnerRid];
+      var nameEl=hasRecipe
+        ? h("div",{style:{fontSize:"14px",color:"var(--text)",marginBottom:"2px",cursor:"pointer"},onclick:function(){showRecipeModal(dinnerRid);}},[planned.name+" ",h("span",{style:{color:"var(--sage)",fontSize:"12px"}},"· recipe ›")])
+        : h("div",{style:{fontSize:"14px",color:"var(--text)",marginBottom:"2px"}},planned.name);
       // Show the specific planned meal for today — "Ate as planned" logs it by name.
       card.appendChild(h("div",{style:{marginTop:"12px",background:"rgba(124,148,115,0.08)",borderRadius:"8px",padding:"10px 12px"}},[
         h("div",{style:{fontSize:"12px",color:"var(--sage)",marginBottom:"4px"}},"Planned for today"),
-        h("div",{style:{fontSize:"14px",color:"var(--text)",marginBottom:"2px"}},planned.name),
+        nameEl,
         h("div",{style:{fontSize:"12px",color:"var(--muted)"}},planned.cal+" cal · "+planned.prot+"g protein"),
       ]));
       card.appendChild(h("div",{style:{display:"flex",gap:"8px",marginTop:"12px"}},[
