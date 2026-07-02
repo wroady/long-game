@@ -226,16 +226,24 @@ async function authSignIn(email,password){
   saveSession(buildSession(d));
   return SESSION;
 }
+// Only these responses mean the refresh token is definitively dead and we should sign the user out.
+// Anything else (network blip, 5xx, unexpected shape) leaves the session in place so a later retry works.
+function isRefreshTokenDead(status,d){
+  if(status!==400&&status!==401)return false;
+  var code=(d&&(d.error_code||d.error||d.msg))||"";
+  return /invalid_grant|refresh_token_not_found|refresh_token_already_used|refresh_token_revoked/i.test(code);
+}
 function authRefresh(){
   if(refreshPromise)return refreshPromise;
   if(!SESSION||!SESSION.refresh_token)return Promise.resolve(null);
   refreshPromise=(async function(){
     try{
       var r=await fetch(SUPABASE_URL+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:SESSION.refresh_token})});
-      var d=await r.json();
-      if(!r.ok||!d.access_token){clearSession();return null;}
-      saveSession(buildSession(d));return SESSION.access_token;
-    }catch(e){return null;}
+      var d={};try{d=await r.json();}catch(e){}
+      if(r.ok&&d.access_token){saveSession(buildSession(d));return SESSION.access_token;}
+      if(isRefreshTokenDead(r.status,d)){clearSession();return null;}
+      return null; // transient: keep session, retry later
+    }catch(e){return null;} // network error: keep session
   })();
   refreshPromise.finally(function(){refreshPromise=null;});
   return refreshPromise;
@@ -256,7 +264,8 @@ async function authedFetch(url,opts){
   if(res.status===401){
     var nt=await authRefresh();
     if(nt)res=await fetch(url,withAuth(nt));
-    else clearSession();
+    // if refresh failed but session is still around, authRefresh already decided whether to clear it —
+    // don't nuke it here just because one request 401'd (could be a transient server issue)
   }
   return res;
 }
